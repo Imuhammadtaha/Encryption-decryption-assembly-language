@@ -1,0 +1,168 @@
+.MODEL SMALL
+.STACK 100h
+
+.DATA
+    ; Constants for newline, carriage return, and backspace
+    newline EQU 0AH  ; '\n'
+    cret EQU 0DH    ; '\r'
+
+    ; Define input and output file names
+    input_file_name DB "input.txt", 0
+    output_file_name DB "output.txt", 0
+
+    ; Input string buffer (256 chars + \r + \n + $)
+    input_string DB 257 DUP(?)
+
+    ; Define program messages
+    welcome_message DB 'Welcome to the encryption/decryption program!', cret, newline, '$'
+    success_message DB 'File read successfully.', cret, newline, '$'
+    processing_message DB 'Processing...', cret, newline, '$'
+    congratulations_message DB 'Congratulations! Program completed successfully.', cret, newline, '$'
+    error_message DB 'Error: Operation failed.', cret, newline, '$'
+    file_not_found_message DB 'Error: Input file not found.', cret, newline, '$'
+
+.CODE
+start:
+    ; Load data segment address
+    MOV AX, @DATA
+    MOV DS, AX
+
+    ; Display welcome message
+    MOV AH, 09
+    MOV DX, OFFSET welcome_message
+    INT 21H
+
+    ; Open input file
+    MOV AH, 3DH
+    MOV AL, 0  ; Open file in read mode
+    MOV DX, OFFSET input_file_name
+    INT 21H
+    JC file_not_found  ; Jump if file not found
+
+    ; File handle is in AX
+    MOV BX, AX
+
+    ; Read data from input file
+    MOV AH, 3FH
+    MOV CX, 256
+    LEA DX, input_string
+    INT 21H
+    JC read_error  ; Jump if read fails
+
+    ; Null-terminate the input string
+    MOV SI, OFFSET input_string
+    ADD SI, CX
+    MOV BYTE PTR [SI], 0  ; Null-terminate the input string
+
+    ; Close input file
+    MOV AH, 3EH
+    MOV BX, AX
+    INT 21H
+
+    ; Display success message
+    MOV AH, 09
+    MOV DX, OFFSET success_message
+    INT 21H
+
+    ; Display processing message
+    MOV AH, 09
+    MOV DX, OFFSET processing_message
+    INT 21H
+
+    ; Encrypt the input string
+    CALL encrypt_decrypt
+
+    ; Open output file for writing
+    MOV AH, 3CH
+    MOV AL, 0  ; Create file
+    MOV DX, OFFSET output_file_name
+    INT 21H
+    JC write_error  ; Jump to error handler if failed
+
+    ; File handle is now in AX
+    MOV BX, AX
+
+    ; Write the encrypted data to the output file
+    MOV AH, 40H
+    MOV DX, OFFSET input_string
+    MOV CX, 256
+    INT 21H
+    JC write_error  ; Jump to error handler if failed
+
+    ; Close output file
+    MOV AH, 3EH
+    MOV BX, AX
+    INT 21H
+
+    ; Display congratulations message
+    MOV AH, 09
+    MOV DX, OFFSET congratulations_message
+    INT 21H
+
+    ; Exit program
+    MOV AH, 4CH
+    INT 21H
+
+encrypt_decrypt PROC NEAR
+    ; Encryption/Decryption routine
+    PUSH SI
+    MOV SI, OFFSET input_string  ; Initialize SI to point to the input string
+
+encrypt_decrypt_loop:
+    MOV AL, [SI]  ; Load the character from input string
+    CMP AL, 0  ; Check for end of string
+    JE end_encrypt_decrypt  ; If end of string, exit loop
+
+    ; Display the encrypted character on screen
+    MOV AH, 02h
+    MOV DL, AL
+    INT 21H
+
+    ; Encrypt the character using a simple encryption method
+    CALL enc_dec_char
+
+    ; Store the encrypted character back to the input string
+    MOV [SI], AL
+    INC SI  ; Move to the next character
+    JMP encrypt_decrypt_loop  ; Repeat the loop
+
+end_encrypt_decrypt:
+    POP SI
+    RET
+
+encrypt_decrypt ENDP
+
+enc_dec_char PROC NEAR
+    ;SUB 5 to the ASCII code of the character
+    SUB AL, 5
+
+    RET
+enc_dec_char ENDP
+
+file_not_found:
+    ; Display error message for file not found
+    MOV AH, 09
+    MOV DX, OFFSET file_not_found_message
+    INT 21H
+    JMP exit_program
+
+read_error:
+    ; Display error message for read error
+    MOV AH, 09
+    MOV DX, OFFSET error_message
+    INT 21H
+    JMP exit_program
+
+write_error:
+    ; Display error message for write error
+    MOV AH, 09
+    MOV DX, OFFSET error_message
+    INT 21H
+    JMP exit_program
+
+exit_program:
+    ; Exit program with error code
+    MOV AH, 4CH
+    INT 21H
+
+END start
